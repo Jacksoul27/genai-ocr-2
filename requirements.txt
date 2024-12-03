@@ -1,0 +1,10 @@
+google-generativeai
+flask
+jsonify
+requests
+pillow
+opencv-python-headless
+uvicorn[standard]
+pytesseract
+streamlit
+matplotlib
