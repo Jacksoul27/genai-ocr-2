@@ -1,4 +1,5 @@
 import json
+from operator import contains
 from flask import Flask, request, jsonify
 import google.generativeai as genai
 from dotenv import load_dotenv
@@ -8,8 +9,16 @@ import cv2
 import numpy as np
 import re
 import ssl
+import pyodbc
+
 
 load_dotenv()
+
+DB_DRIVER = os.getenv("DB_DRIVER")
+DB_SERVER = os.getenv("DB_SERVER")
+DB_NAME = os.getenv("DB_NAME")
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
 
 # Konfigurasi genai
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
@@ -29,14 +38,100 @@ def is_photocopy(image: Image.Image) -> bool:
     proportion = black_white_pixels / total_pixels
     return proportion > 0.9
 
+# Fungsi untuk menyimpan ke database
+def save_to_mssql_ktp(data):
+    connection_string = (
+        f"DRIVER={{{DB_DRIVER}}};"
+        f"SERVER={DB_SERVER};"
+        f"DATABASE={DB_NAME};"
+        f"UID={DB_USER};"
+        f"PWD={DB_PASSWORD};"
+    )
+
+    try:
+        conn = pyodbc.connect(connection_string)
+        cursor = conn.cursor()
+
+        query = """
+        EXEC SaveToOCRKTP ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        """
+        cursor.execute(query, (
+            data["idNumber"], data["name"], data["bloodType"], data["religion"], 
+            data["gender"], data["birthPlaceBirthday"], data["province"], data["city"], 
+            data["district"], data["village"], data["rtrw"], data["occupation"], 
+            data["expiryDate"], data["nationality"], data["maritalStatus"], data["address"], 
+            data["placeOfBirth"], data["birthday"]
+        ))
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Database error: {e}")
+
+# Fungsi untuk menyimpan ke database
+def save_to_mssql_faktur(data):
+    connection_string = (
+        f"DRIVER={{{DB_DRIVER}}};"
+        f"SERVER={DB_SERVER};"
+        f"DATABASE={DB_NAME};"
+        f"UID={DB_USER};"
+        f"PWD={DB_PASSWORD};"
+    )
+
+    try:
+        conn = pyodbc.connect(connection_string)
+        cursor = conn.cursor()
+
+        query = """
+        EXEC SaveToOCRFAKTUR ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        """
+        cursor.execute(query, (
+            data["type"], data["jenis"], data["model"], data["tahun pembuatan"],
+            data["isi silinder"], data["warna"], data["no. rangka/nik/vin"], data["no. mesin"], 
+            data["bahan bakar"], data["harga"]
+        ))
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Database error: {e}")
+
+# Fungsi untuk menyimpan ke database
+def save_to_mssql_passport(data):
+    connection_string = (
+        f"DRIVER={{{DB_DRIVER}}};"
+        f"SERVER={DB_SERVER};"
+        f"DATABASE={DB_NAME};"
+        f"UID={DB_USER};"
+        f"PWD={DB_PASSWORD};"
+    )
+
+    try:
+        conn = pyodbc.connect(connection_string)
+        cursor = conn.cursor()
+
+        query = """
+        EXEC SaveToOCRPASSPORT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        """
+        cursor.execute(query, (
+            data["dateOfBirth"], data["expiryDate"], data["givenNames"], data["issueDate"], 
+            data["issuingStateCode"], data["nationality"], data["passportNo"], data["placeOfBirth"], 
+            data["sex"], data["surname"], data["type"]
+        ))
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Database error: {e}")
+
 # Fungsi untuk memformat data yang diekstrak
 def formatted_extract_data_ktp(data_ktp: str) -> dict:
     if not data_ktp.strip():
-        return jsonify({
+        return {
             "code": "OCR_NO_RESULT",
             "message": "OCR check failed, unable to find any KTP field in the uploaded picture",
             "data": None,
-        }), 400
+        }
 
     lines = data_ktp.strip().split("\n")
 
@@ -111,11 +206,11 @@ def formatted_extract_data_ktp(data_ktp: str) -> dict:
             extracted_data["address"] = line.split(":")[1].strip()
 
     if all(value is None for value in extracted_data.values()):
-        return jsonify ({
+        return {
             "code": "OCR_NO_RESULT",
             "message": "OCR check failed, unable to find KTP field in uploaded picture",
             "data": None,
-        }), 400
+        }
     
     return {
         "code": "SUCCESS",
@@ -126,11 +221,11 @@ def formatted_extract_data_ktp(data_ktp: str) -> dict:
 def format_extracted_data_faktur(data_faktur: str) -> dict:
 
     if not data_faktur.strip():
-        return jsonify ({
+        return {
             "code": "OCR_NO_RESULT",
-            "message": "OCR check failed, unable to find Faktur field in uploaded picture",
+            "message": "OCR check failed, unable to find Faktur field in uploaded picture.",
             "data": None,
-        }), 404
+        }
     
     lines = data_faktur.strip().split("\n")
 
@@ -170,19 +265,96 @@ def format_extracted_data_faktur(data_faktur: str) -> dict:
             extracted_data_faktur["harga"] = line.split(":")[1].strip()
 
     if all(value is None for value in extracted_data_faktur.values()):
-        return jsonify ({
+        return {
             "code": "OCR_NO_RESULT",
-            "message": "OCR check failed, unable to find any field in the uploaded picture",
+            "message": "OCR check failed, unable to find Faktur field in uploaded picture.",
             "data": None,
-        }), 404
+        }
     
     response_faktur = {
-        "code": "OCR_SUCCESS",
+        "code": "SUCCESS",
         "message": "OK",
         "data": extracted_data_faktur,
     }
 
     return response_faktur
+
+def format_extracted_data_passport(data_passport: str) -> dict:
+
+    if not data_passport.strip():
+        return {
+            "code": "OCR_NO_RESULT",
+            "message": "OCR check failed, unable to find Passport field in uploaded picture.",
+            "data": None,
+        }
+    
+    lines = data_passport.strip().split("\n")
+
+    extracted_data_passport = {
+        "dateOfBirth": None,
+        "expiryDate": None,
+        "givenNames": None,
+        "issueDate": None,
+        "issuingStateCode": None,
+        "nationality": None,
+        "passportNo": None,
+        "placeOfBirth": None,
+        "sex": None,
+        "surname": None,
+        "type": None,
+    }
+
+    for line in lines:
+        if "Date of birth:" in line:
+            extracted_data_passport["dateOfBirth"] = line.split(":")[1].strip()
+        elif "Expiry date:" in line:
+            extracted_data_passport["expiryDate"] = line.split(":")[1].strip()
+        elif "Given names:" in line:
+            extracted_data_passport["givenNames"] = line.split(":")[1].strip()
+        elif "Date of issue:" in line:
+            extracted_data_passport["issueDate"] = line.split(":")[1].strip()
+        elif "Issuing state code:" in line:
+            extracted_data_passport["issuingStateCode"] = line.split(":")[1].strip()
+        elif "Nationality:" in line:
+            extracted_data_passport["nationality"] = line.split(":")[1].strip()
+        elif "Passport no:" in line:
+            extracted_data_passport["passportNo"] = line.split(":")[1].strip()
+        elif "Place of birth:" in line:
+            extracted_data_passport["placeOfBirth"] = line.split(":")[1].strip()
+        elif "Sex:" in line:
+            extracted_data_passport["sex"] = line.split(":")[1].strip()
+        elif "Surname:" in line:
+            extracted_data_passport["surname"] = line.split(":")[1].strip()
+        elif "Type:" in line:
+            extracted_data_passport["type"] = line.split(":")[1].strip()
+
+    if all(value is None for value in extracted_data_passport.values()):
+        return {
+            "code": "OCR_NO_RESULT",
+            "message": "OCR check failed, unable to find Passport field in uploaded picture.",
+            "data": None,
+        }
+    
+    response_passport = {
+        "code": "SUCCESS",
+        "message": "OK",
+        "data": extracted_data_passport,
+    }
+
+    return response_passport
+
+
+# Fungsi untuk parsing teks menjadi key-value
+def parse_to_key_value(text):
+    data = {}
+    # Membagi teks berdasarkan baris dan memisahkan key-value menggunakan regex
+    for line in text.split("\n"):
+        match = re.match(r"^(.*?):\s*(.*)$", line.strip())
+        if match:
+            key = match.group(1).strip()
+            value = match.group(2).strip()
+            data[key] = value
+    return data
 
 # Endpoint untuk ekstraksi data
 @app.route("/extract-data-ktp", methods=["POST"])
@@ -246,7 +418,11 @@ def extract_data():
              """, image])
         
         extracted_data = formatted_extract_data_ktp(response.text)
-        return jsonify(extracted_data)
+
+        if extracted_data["code"] == "SUCCESS":
+            save_to_mssql_ktp(extracted_data["data"])
+
+        return jsonify(extracted_data), 200
 
     except Exception as e:
         return jsonify({
@@ -310,7 +486,11 @@ def extract_data_faktur():
              """, image_faktur])
         
         extracted_data_faktur = format_extracted_data_faktur(response_faktur.text)
-        return jsonify(extracted_data_faktur)
+
+        if extracted_data_faktur["code"] == "SUCCESS":
+            save_to_mssql_faktur(extracted_data_faktur["data"])
+
+        return jsonify(extracted_data_faktur), 200
 
     except Exception as e:
         return jsonify({
@@ -319,6 +499,53 @@ def extract_data_faktur():
             "data": None,
         }), 500
 
+@app.route("/extract-data-passport", methods=["POST"])
+def extract_passport():
+    if "file" not in request.files:
+        return jsonify({
+            "code": "NO_FILE",
+            "message": "No file uploaded.",
+            "data": None,
+        }), 400
+    
+    file_passport = request.files["file"]
+
+    try:
+        passport = Image.open(file_passport)
+
+        # Menggunakan model untuk ekstraksi konten
+        response_passport = model.generate_content(
+            ["""Analisa dan Ekstrak semua informasi dalam passport dengan format berikut: 
+            Date of birth:
+            Expiry date:
+            Given names:
+            Date of issue:
+            Issuing state code:
+            Nationality:
+            Passport no:
+            Place of birth:
+            Sex:
+            Surname:
+            Type:
+
+            jangan tambahkan apapun yang tidak perlu seperti simbol, tanda baca, dll. hanya tulisan saja.
+            """, passport])
+        
+        formatted_passport = format_extracted_data_passport(response_passport.text)
+
+        if formatted_passport["code"] == "SUCCESS":
+            save_to_mssql_passport(formatted_passport["data"])
+
+        return jsonify (formatted_passport), 200
+        # return response_passport.text
+
+    except Exception as e:
+        return jsonify({
+            "code": "SERVER_ERROR",
+            "message": str(e),
+            "data": None,
+        }), 500
+    
 @app.route("/extract", methods=["POST"])
 def extract_anythings():
     if "file" not in request.files:
@@ -335,14 +562,20 @@ def extract_anythings():
 
         # Menggunakan model untuk ekstraksi konten
         response_anything = model.generate_content(
-            ["""
-            Analisa dan Ekstrak semua informasi dalam file terlampir.
+            ["""Extract key-value pairs from this text. Translate all to english
+             Do not add anything else
              """, anything])
         
+        # Mendapatkan teks dari response
+        text = response_anything.text
+
+        # Parsing teks menjadi key-value pairs
+        parsed_data = parse_to_key_value(text)  
+
         response_data_anything = {
-            "code": "OK",
-            "message": "Exraction Successful",
-            "data": response_anything.to_dict()
+            "code": "SUCCESS",
+            "message": "OK",
+            "data": parsed_data
         }
 
         return jsonify (response_data_anything), 200
