@@ -41,74 +41,74 @@ def formatted_extract_data_ktp(data_ktp: str) -> dict:
     lines = data_ktp.strip().split("\n")
 
     extracted_data = {
-        "nik": None,
-        "nama": None,
-        "golonganDarah": None,
-        "agama": None,
-        "jenisKelamin": None,
-        "tempatTglLahir": None,
-        "provinsi": None,
-        "kota": None,
-        "kecamatan": None,
-        "desa": None,
+        "idNumber": None,
+        "name": None,
+        "bloodType": None,
+        "religion": None,
+        "gender": None,
+        "birthPlaceBirthday": None,
+        "province": None,
+        "city": None,
+        "district": None,
+        "village": None,
         "rtrw": None,
-        "pekerjaan": None,
-        "berlakuHingga": None,
-        "kewarganegaraan": None,
-        "statusPerkawinan": None,
-        "alamat": None,
-        "tempatLahir": None,
-        "tanggalLahir": None,
+        "occupation": None,
+        "expiryDate": None,
+        "nationality": None,
+        "maritalStatus": None,
+        "address": None,
+        "placeOfBirth": None,
+        "birthday": None,
     }
 
     birth_date_pattern = re.compile(r"(.+?)\s(\d{2}-\d{2}-\d{4})")
 
     for line in lines:
         if "NIK:" in line:
-            extracted_data["nik"] = line.split(":")[1].strip()
+            extracted_data["idNumber"] = line.split(":")[1].strip()
         elif "Nama:" in line:
-            extracted_data["nama"] = line.split(":")[1].strip()
+            extracted_data["name"] = line.split(":")[1].strip()
         elif "Golongan Darah:" in line:
-            extracted_data["golonganDarah"] = line.split(":")[1].strip()
+            extracted_data["bloodType"] = line.split(":")[1].strip()
         elif "Agama:" in line:
-            extracted_data["agama"] = line.split(":")[1].strip()
+            extracted_data["religion"] = line.split(":")[1].strip()
         elif "Jenis Kelamin:" in line:
-            extracted_data["jenisKelamin"] = line.split(":")[1].strip()
+            extracted_data["gender"] = line.split(":")[1].strip()
         elif "Tempat/Tgl.Lahir:" in line:
             birth_info = line.split(":")[1].strip()
-            extracted_data["tempatTglLahir"] = birth_info
+            extracted_data["birthPlaceBirthday"] = birth_info
 
             # Jika tidak ada koma, gunakan regex
             if "," not in birth_info:
                 match = birth_date_pattern.match(birth_info)
                 if match:
-                    extracted_data["tempatLahir"] = match.group(1).strip()
-                    extracted_data["tanggalLahir"] = match.group(2).strip().replace("-", "/")
+                    extracted_data["placeOfBirth"] = match.group(1).strip()
+                    extracted_data["birthday"] = match.group(2).strip().replace("-", "/")
             else:
                 # Jika ada koma, pisahkan seperti biasa
                 place, date = birth_info.split(",", 1)
-                extracted_data["tempatLahir"] = place.strip()
-                extracted_data["tanggalLahir"] = date.strip().replace("-", "/")
+                extracted_data["placeOfBirth"] = place.strip()
+                extracted_data["birthday"] = date.strip().replace("-", "/")
         elif "Provinsi:" in line:
-            extracted_data["provinsi"] = line.split(":")[1].strip()
+            extracted_data["province"] = line.split(":")[1].strip()
         elif "Kota/Kabupaten:" in line:
-            extracted_data["kota"] = line.split(":")[1].strip()
+            extracted_data["city"] = line.split(":")[1].strip()
         elif "Kecamatan:" in line:
-            extracted_data["kecamatan"] = line.split(":")[1].strip()
+            extracted_data["district"] = line.split(":")[1].strip()
         elif "Kel/Desa:" in line:
-            extracted_data["desa"] = line.split(":")[1].strip()
+            extracted_data["village"] = line.split(":")[1].strip()
         elif "RT/RW:" in line:
             extracted_data["rtrw"] = line.split(":")[1].strip()
         elif "Pekerjaan:" in line:
-            extracted_data["pekerjaan"] = line.split(":")[1].strip()
+            extracted_data["occupation"] = line.split(":")[1].strip()
         elif "Berlaku Hingga:" in line:
-            extracted_data["berlakuHingga"] = line.split(":")[1].strip()
+            extracted_data["expiryDate"] = line.split(":")[1].strip()
         elif "Kewarganegaraan:" in line:
-            extracted_data["kewarganegaraan"] = line.split(":")[1].strip()
+            extracted_data["nationality"] = line.split(":")[1].strip()
         elif "Status Perkawinan:" in line:
-            extracted_data["statusPerkawinan"] = line.split(":")[1].strip()
+            extracted_data["maritalStatus"] = line.split(":")[1].strip()
         elif "Alamat:" in line:
-            extracted_data["alamat"] = line.split(":")[1].strip()
+            extracted_data["address"] = line.split(":")[1].strip()
 
     if all(value is None for value in extracted_data.values()):
         return jsonify ({
@@ -119,7 +119,7 @@ def formatted_extract_data_ktp(data_ktp: str) -> dict:
     
     return {
         "code": "SUCCESS",
-        "message": "OCR check success",
+        "message": "OK",
         "data": extracted_data,
     }
 
