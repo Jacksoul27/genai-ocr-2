@@ -178,7 +178,7 @@ def format_extracted_data_faktur(data_faktur: str) -> dict:
     
     response_faktur = {
         "code": "OCR_SUCCESS",
-        "message": "OCR check success",
+        "message": "OK",
         "data": extracted_data_faktur,
     }
 
