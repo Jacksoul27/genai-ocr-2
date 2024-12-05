@@ -11,7 +11,7 @@ import re
 import ssl
 import pyodbc
 import pytesseract
-
+from datetime import datetime
 
 
 load_dotenv()
@@ -195,12 +195,14 @@ def formatted_extract_data_ktp(data_ktp: str) -> dict:
                 match = birth_date_pattern.match(birth_info)
                 if match:
                     extracted_data["placeOfBirth"] = match.group(1).strip()
-                    extracted_data["birthday"] = match.group(2).strip().replace("-", "/")
+                    raw_date = match.group(2).strip()
+                    extracted_data["birthday"] = datetime.strptime(raw_date, "%d-%m-%Y").strftime("%Y/%m/%d")
             else:
                 # Jika ada koma, pisahkan seperti biasa
                 place, date = birth_info.split(",", 1)
                 extracted_data["placeOfBirth"] = place.strip()
-                extracted_data["birthday"] = date.strip().replace("-", "/")
+                raw_date = match.group(2).strip()
+                extracted_data["birthday"] = datetime.strptime(raw_date, "%d-%m-%Y").strftime("%Y/%m/%d")
         elif "Provinsi:" in line:
             extracted_data["province"] = line.split(":")[1].strip()
         elif "Kota/Kabupaten:" in line:
@@ -442,6 +444,8 @@ def extract_data():
 
                     jangan tambahkan apapun yang tidak perlu seperti simbol, tanda baca, dll. hanya tulisan saja. deteksi jika gambar hitam putih adalah fotokopi dan tidak bisa diproses.
                     """, image])
+
+                print(response.usage_metadata)
                 
                 extracted_data = formatted_extract_data_ktp(response.text)
 
@@ -517,6 +521,8 @@ def extract_data_faktur():
 
              jangan tambahkan apapun yang tidak perlu seperti simbol, tanda baca, dll. hanya tulisan saja. deteksi jika gambar hitam putih adalah fotokopi dan tidak bisa diproses.
              """, image_faktur])
+
+        print(response_faktur.usage_metadata)
         
         extracted_data_faktur = format_extracted_data_faktur(response_faktur.text)
 
@@ -563,7 +569,8 @@ def extract_passport():
 
             jangan tambahkan apapun yang tidak perlu seperti simbol, tanda baca, dll. hanya tulisan saja.
             """, passport])
-        
+        print(response_passport.usage_metadata)
+
         formatted_passport = format_extracted_data_passport(response_passport.text)
 
         if formatted_passport["code"] == "SUCCESS":
@@ -598,6 +605,8 @@ def extract_anythings():
             ["""Extract key-value pairs from this text. Translate all to english
              Do not add anything else
              """, anything])
+        
+        print(response_anything.usage_metadata)
         
         # Mendapatkan teks dari response
         text = response_anything.text
