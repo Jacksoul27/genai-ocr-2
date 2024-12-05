@@ -460,7 +460,8 @@ def extract_data():
         else:
             return {
                 "result": valid,
-                "message": "tidak ada NIK dalam gambar"
+                "code": "OCR_NO_RESULT",
+                "message": "OCR check failed, unable to find NIK in uploaded picture."
             }
         
 @app.route("/extract-data-faktur", methods=["POST"])
