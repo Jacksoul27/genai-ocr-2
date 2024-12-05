@@ -10,6 +10,8 @@ import numpy as np
 import re
 import ssl
 import pyodbc
+import pytesseract
+
 
 
 load_dotenv()
@@ -30,13 +32,28 @@ app = Flask(__name__)
 
 # Fungsi untuk mendeteksi fotokopi
 def is_photocopy(image: Image.Image) -> bool:
-    image_cv = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-    gray = cv2.cvtColor(image_cv, cv2.COLOR_BGR2GRAY)
-    hist = cv2.calcHist([gray], [0], None, [256], [0, 256])
-    total_pixels = image_cv.shape[0] * image_cv.shape[1]
-    black_white_pixels = hist[0] + hist[255]
-    proportion = black_white_pixels / total_pixels
-    return proportion > 0.9
+    # Konversi objek PIL.Image ke array numpy
+    imagecv = np.array(image)
+
+    # Pastikan format gambar dalam BGR jika menggunakan OpenCV
+    if imagecv.ndim == 2:  # Jika grayscale, tambahkan dimensi untuk channel
+        imagecv = cv2.cvtColor(imagecv, cv2.COLOR_GRAY2BGR)
+
+    # Convert gambar ke grayscale
+    grayscale = cv2.cvtColor(imagecv, cv2.COLOR_BGR2GRAY)
+    
+    # Melakukan thresholding untuk memisahkan elemen-elemen yang berbeda
+    _, thresholded = cv2.threshold(grayscale, 240, 255, cv2.THRESH_BINARY)
+    
+    # Menghitung jumlah kontur
+    contours, _ = cv2.findContours(thresholded, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    # Jika jumlah kontur melebihi nilai tertentu, gambar kemungkinan besar adalah fotokopi
+    print(f"Jumlah kontur: {len(contours)}")
+    if len(contours) > 2500:  
+        return True
+    else:
+        return False
 
 # Fungsi untuk menyimpan ke database
 def save_to_mssql_ktp(data):
@@ -377,60 +394,75 @@ def extract_data():
             "data": None,
         }), 400
 
-    try:
-        image = Image.open(file)
-        width, height = image.size
-        if width < 256 or height < 256 or width > 4096 or height > 4096:
-            return jsonify({
-                "code": "IMAGE_INVALID_SIZE",
-                "message": "Invalid image dimensions.",
-                "data": None,
-            }), 400
+    if file.filename.lower().endswith(valid_content_types) or file.mimetype in valid_content_types:
+        img = cv2.imdecode(np.fromstring(request.files['file'].read(), np.uint8), cv2.IMREAD_UNCHANGED)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        th, threshed = cv2.threshold(gray, 127, 255, cv2.THRESH_TRUNC)
+        result = pytesseract.image_to_string((threshed), lang='ind')
+        result.replace('\n', ' ')
+        valid = False
 
-        if is_photocopy(image):
-            return jsonify({
-                "code": "IMAGE_IS_PHOTOCOPY",
-                "message": "Image appears to be a photocopy.",
-                "data": None,
-            }), 400
+        if 'NIK' or "nik" in result:
+            try:
+                image = Image.open(file)
+                width, height = image.size
+                if width < 256 or height < 256 or width > 4096 or height > 4096:
+                    return jsonify({
+                        "code": "IMAGE_INVALID_SIZE",
+                        "message": "Invalid image dimensions.",
+                        "data": None,
+                    }), 400
 
-        # Menggunakan model untuk ekstraksi konten
-        response = model.generate_content(
-            ["""Analisa dan Ekstrak semua informasi dalam KTP dengan format berikut: 
-             NIK:
-             Nama:
-             Golongan Darah:
-             Agama:
-             Jenis Kelamin:
-             Tempat/Tgl.Lahir:
-             Provinsi:
-             Kota/Kabupaten:
-             Kecamatan:
-             Kel/Desa:
-             RT/RW:
-             Pekerjaan:
-             Berlaku Hingga:
-             Kewarganegaraan:
-             Status Perkawinan:
-             Alamat:
+                if is_photocopy(image):
+                    return jsonify({
+                        "code": "IMAGE_IS_PHOTOCOPY",
+                        "message": "Image appears to be a photocopy.",
+                        "data": None,
+                    }), 400
 
-             jangan tambahkan apapun yang tidak perlu seperti simbol, tanda baca, dll. hanya tulisan saja. deteksi jika gambar hitam putih adalah fotokopi dan tidak bisa diproses.
-             """, image])
+                # Menggunakan model untuk ekstraksi konten
+                response = model.generate_content(
+                    ["""Analisa dan Ekstrak semua informasi dalam KTP dengan format berikut: 
+                    NIK:
+                    Nama:
+                    Golongan Darah:
+                    Agama:
+                    Jenis Kelamin:
+                    Tempat/Tgl.Lahir:
+                    Provinsi:
+                    Kota/Kabupaten:
+                    Kecamatan:
+                    Kel/Desa:
+                    RT/RW:
+                    Pekerjaan:
+                    Berlaku Hingga:
+                    Kewarganegaraan:
+                    Status Perkawinan:
+                    Alamat:
+
+                    jangan tambahkan apapun yang tidak perlu seperti simbol, tanda baca, dll. hanya tulisan saja. deteksi jika gambar hitam putih adalah fotokopi dan tidak bisa diproses.
+                    """, image])
+                
+                extracted_data = formatted_extract_data_ktp(response.text)
+
+                if extracted_data["code"] == "SUCCESS":
+                    save_to_mssql_ktp(extracted_data["data"])
+
+                return jsonify(extracted_data), 200
+
+            except Exception as e:
+                return jsonify({
+                    "code": "SERVER_ERROR",
+                    "message": str(e),
+                    "data": None,
+                }), 500
+
+        else:
+            return {
+                "result": valid,
+                "message": "tidak ada NIK dalam gambar"
+            }
         
-        extracted_data = formatted_extract_data_ktp(response.text)
-
-        if extracted_data["code"] == "SUCCESS":
-            save_to_mssql_ktp(extracted_data["data"])
-
-        return jsonify(extracted_data), 200
-
-    except Exception as e:
-        return jsonify({
-            "code": "SERVER_ERROR",
-            "message": str(e),
-            "data": None,
-        }), 500
-    
 @app.route("/extract-data-faktur", methods=["POST"])
 def extract_data_faktur():
     if "file" not in request.files:
