@@ -141,6 +141,35 @@ def save_to_mssql_passport(data):
     except Exception as e:
         print(f"Database error: {e}")
 
+# Fungsi untuk check existing nik
+def match_nik_in_database(data):
+    connection_string = (
+        f"DRIVER={{{DB_DRIVER}}};"
+        f"SERVER={DB_SERVER};"
+        f"DATABASE={DB_NAME};"
+        f"UID={DB_USER};"
+        f"PWD={DB_PASSWORD};"
+    )
+
+    try:
+        conn = pyodbc.connect(connection_string)
+        cursor = conn.cursor()
+
+        query = "SELECT nik FROM OCRKTP"
+        cursor.execute(query)
+        existing_niks = [row[0] for row in cursor.fetchall()]
+
+        extracted_nik = data["idNumber"]
+        if extracted_nik not in existing_niks:
+            save_to_mssql_ktp(data)
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+    
+    except Exception as e:
+        print(f"Database error: {e}")
+
 # Fungsi untuk memformat data yang diekstrak
 def formatted_extract_data_ktp(data_ktp: str) -> dict:
     if not data_ktp.strip():
@@ -450,7 +479,7 @@ def extract_data():
                 extracted_data = formatted_extract_data_ktp(response.text)
 
                 if extracted_data["code"] == "SUCCESS":
-                    save_to_mssql_ktp(extracted_data["data"])
+                    match_nik_in_database(extracted_data["data"])
 
                 return jsonify(extracted_data), 200
 
