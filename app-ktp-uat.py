@@ -12,6 +12,7 @@ import ssl
 import pyodbc
 import pytesseract
 from datetime import datetime
+import time
 
 
 load_dotenv()
@@ -25,7 +26,8 @@ DB_PASSWORD = os.getenv("DB_PASSWORD")
 # Konfigurasi genai
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 # genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-model = genai.GenerativeModel("gemini-1.5-pro")
+# model = genai.GenerativeModel("gemini-1.5-pro")
+model = genai.GenerativeModel("gemini-1.5-flash")
 
 # Inisialisasi Flask
 app = Flask(__name__)
@@ -450,6 +452,8 @@ def extract_data():
                         "message": "Image appears to be a photocopy.",
                         "data": None,
                     }), 400
+                
+                # start_time = time.time()
 
                 # Menggunakan model untuk ekstraksi konten
                 response = model.generate_content(
@@ -473,8 +477,15 @@ def extract_data():
 
                     jangan tambahkan apapun yang tidak perlu seperti simbol, tanda baca, dll. hanya tulisan saja. deteksi jika gambar hitam putih adalah fotokopi dan tidak bisa diproses.
                     """, image])
+                
+                # end_time = time.time()
 
-                print(response.usage_metadata)
+                duration = end_time - start_time
+
+                print(f"Durasi generate_content: {duration:.2f} detik")
+
+                # print(response.usage_metadata)
+                # print(response)
                 
                 extracted_data = formatted_extract_data_ktp(response.text)
 
