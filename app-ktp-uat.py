@@ -480,7 +480,7 @@ def extract_data():
                 
                 # end_time = time.time()
 
-                duration = end_time - start_time
+                # duration = end_time - start_time
 
                 print(f"Durasi generate_content: {duration:.2f} detik")
 
