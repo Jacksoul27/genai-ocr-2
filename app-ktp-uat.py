@@ -482,9 +482,9 @@ def extract_data():
 
                 # duration = end_time - start_time
 
-                print(f"Durasi generate_content: {duration:.2f} detik")
+                # print(f"Durasi generate_content: {duration:.2f} detik")
 
-                # print(response.usage_metadata)
+                print(response.usage_metadata)
                 # print(response)
                 
                 extracted_data = formatted_extract_data_ktp(response.text)
