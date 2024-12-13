@@ -13,6 +13,8 @@ import pyodbc
 import pytesseract
 from datetime import datetime
 import time
+import smtplib
+import dns.resolver
 
 
 load_dotenv()
@@ -669,6 +671,87 @@ def extract_anythings():
             "data": None,
         }), 500
 
+
+# Fungsi untuk memeriksa validitas sintaks email
+def is_valid_email(email):
+    regex = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+    return re.match(regex, email) is not None
+
+# Fungsi untuk memverifikasi email menggunakan Gemini 1.5 Pro
+def verify_email_with_gemini(email):
+    # Prompt untuk model Gemini
+    prompt = f"Is the email address '{email}' valid, deliverable, and active? Check if it is a frequently used address."
+
+    try:
+        response = model.generate_content(prompt)
+        return response.text  # Access 'content' instead of 'generations'
+    except Exception as e:
+        return f"Error: {str(e)}"
+    
+def smtp_check(email):
+    domain = email.split('@')[-1]
+    try:
+        # Get MX record of the domain
+        mx_records = dns.resolver.resolve(domain, 'MX')
+        mx_record = str(mx_records[0].exchange)
+        print(f"MX Record for {domain}: {mx_record}")
+
+        # Connect to the mail server
+        # server = smtplib.SMTP()
+        server = smtplib.SMTP_SSL(mx_record, 587)
+        server.starttls()
+        sender_email=os.getenv("SENDER_EMAIL")
+        sender_password=os.getenv("SENDER_PASSWORD")
+        server.login(sender_email, sender_password)
+        server.set_debuglevel(0)  # Disable debugging output
+        server.connect(mx_record)
+        server.helo()
+        server.mail(sender_email)
+        code, message = server.rcpt(email)
+        print(f"Response from server for RCPT TO: {code} - {message}")
+
+        server.quit()
+
+        # Check if the email is deliverable
+        return code == 250
+    
+    except smtplib.SMTPRecipientsRefused as e:
+        # Handle case when the recipient is refused
+        print(f"SMTP Recipients Refused: {e}")
+        return False
+    except smtplib.SMTPException as e:
+        # Catch any other SMTP errors
+        print(f"SMTP Error: {e}")
+        return False
+    except dns.resolver.NoAnswer as e:
+        # If there is no MX record for the domain
+        print(f"No MX record found for {domain}: {e}")
+        return False
+    except Exception as e:
+        # Catch any other exceptions
+        print(f"General error: {e}")
+        return False
+
+    # except Exception as e:
+    #     return False
+
+# Endpoint Flask untuk memeriksa email
+@app.route('/check_email', methods=['POST'])
+def check_email():
+    data = request.get_json()
+    email = data.get('email', '')
+
+    if not is_valid_email(email):
+        return jsonify({"error": "Invalid email format."}), 400
+    
+    # SMTP Deliverability check
+    deliverability = smtp_check(email)
+    if not deliverability:
+        return jsonify({"error": "Email is not deliverable."}), 400
+
+    # Validasi dengan model Gemini
+    verification_result = verify_email_with_gemini(email)
+    return jsonify({"result": verification_result})
 
 if __name__ == "__main__":
     cert_file = "./SSL/bundle.crt"
