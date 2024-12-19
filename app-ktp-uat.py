@@ -13,8 +13,8 @@ import pyodbc
 import pytesseract
 from datetime import datetime
 import time
-import smtplib
-import dns.resolver
+# import smtplib
+# import dns.resolver
 
 
 load_dotenv()
@@ -29,7 +29,8 @@ DB_PASSWORD = os.getenv("DB_PASSWORD")
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 # genai.configure(api_key=os.environ["GEMINI_API_KEY"])
 # model = genai.GenerativeModel("gemini-1.5-pro")
-model = genai.GenerativeModel("gemini-1.5-flash")
+# model = genai.GenerativeModel("gemini-1.5-flash")
+model = genai.GenerativeModel("gemini-2.0-flash-exp")
 
 # Inisialisasi Flask
 app = Flask(__name__)
@@ -671,87 +672,153 @@ def extract_anythings():
             "data": None,
         }), 500
 
+# Endpoint untuk ekstraksi npwp
+@app.route("/extract-npwp", methods=["POST"])
+def extract_npwp():
+    if "file" not in request.files:
+        return jsonify({
+            "code": "NO_FILE",
+            "message": "No file uploaded.",
+            "data": None,
+        }), 400
+
+    file_npwp = request.files["file"]
+    valid_extensions = (".jpg", ".jpeg", ".png")
+    valid_content_types = ("image/jpg", "image/jpeg", "image/png")
+
+    if not file_npwp.filename.lower().endswith(valid_extensions) or file_npwp.mimetype not in valid_content_types:
+        return jsonify({
+            "code": "IMAGE_INVALID_FORMAT",
+            "message": "Invalid image format. Use jpeg/jpg/png.",
+            "data": None,
+        }), 400
+
+    try:
+        image_npwp = Image.open(file_npwp)
+        width, height = image_npwp.size
+        if width < 256 or height < 256 or width > 4096 or height > 4096:
+            return jsonify({
+                "code": "IMAGE_INVALID_SIZE",
+                "message": "Invalid image dimensions.",
+                "data": None,
+            }), 400
+
+        if is_photocopy(image_npwp):
+            return jsonify({
+                "code": "IMAGE_IS_PHOTOCOPY",
+                "message": "Image appears to be a photocopy.",
+                "data": None,
+            }), 400
+
+        # Menggunakan model untuk ekstraksi konten
+        response_npwp = model.generate_content(
+            ["""Analisa dan Ekstrak semua informasi dalam faktur dengan format berikut:
+            simpan nomor NPWP dengan format NPWP Number: no npwp.
+            simpan data diri dengan format Name: nama dan alamat Address: alamat.
+            jika ada informasi lain, simpan informasi tersebut menyerupai format diatas. dengan bahasa inggris.
+            untuk nomor NPWP jangan tambahkan apapun yang tidak perlu seperti simbol, tanda baca, dll.
+             """, image_npwp])
+
+        # response_npwp.text.replace(".", "").replace("-", "")
+        print(response_npwp.usage_metadata)
+        
+        extracted_data_npwp = parse_to_key_value(response_npwp.text)
+
+        # if extracted_data_npwp["code"] == "SUCCESS":
+        #     save_to_mssql_faktur(extracted_data_npwp["data"])
+
+        return jsonify({
+            "code": "OK",
+            "message": "Success",
+            "data": extracted_data_npwp}), 200
+
+    except Exception as e:
+        return jsonify({
+            "code": "SERVER_ERROR",
+            "message": str(e),
+            "data": None,
+        }), 500
 
 # Fungsi untuk memeriksa validitas sintaks email
-def is_valid_email(email):
-    regex = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
-    return re.match(regex, email) is not None
+# def is_valid_email(email):
+#     regex = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+#     return re.match(regex, email) is not None
 
 # Fungsi untuk memverifikasi email menggunakan Gemini 1.5 Pro
-def verify_email_with_gemini(email):
-    # Prompt untuk model Gemini
-    prompt = f"Is the email address '{email}' valid, deliverable, and active? Check if it is a frequently used address."
+# def verify_email_with_gemini(email):
+#     # Prompt untuk model Gemini
+#     prompt = f"Is the email address '{email}' valid, deliverable, and active? Check if it is a frequently used address."
 
-    try:
-        response = model.generate_content(prompt)
-        return response.text  # Access 'content' instead of 'generations'
-    except Exception as e:
-        return f"Error: {str(e)}"
+#     try:
+#         response = model.generate_content(prompt)
+#         return response.text  # Access 'content' instead of 'generations'
+#     except Exception as e:
+#         return f"Error: {str(e)}"
     
-def smtp_check(email):
-    domain = email.split('@')[-1]
-    try:
-        # Get MX record of the domain
-        mx_records = dns.resolver.resolve(domain, 'MX')
-        mx_record = str(mx_records[0].exchange)
-        print(f"MX Record for {domain}: {mx_record}")
+# def smtp_check(email):
+#     domain = email.split('@')[-1]
+#     try:
+#         # Get MX record of the domain
+#         mx_records = dns.resolver.resolve(domain, 'MX')
+#         mx_record = str(mx_records[0].exchange)
+#         print(f"MX Record for {domain}: {mx_record}")
 
-        # Connect to the mail server
-        # server = smtplib.SMTP()
-        server = smtplib.SMTP_SSL(mx_record, 587)
-        server.starttls()
-        sender_email=os.getenv("SENDER_EMAIL")
-        sender_password=os.getenv("SENDER_PASSWORD")
-        server.login(sender_email, sender_password)
-        server.set_debuglevel(0)  # Disable debugging output
-        server.connect(mx_record)
-        server.helo()
-        server.mail(sender_email)
-        code, message = server.rcpt(email)
-        print(f"Response from server for RCPT TO: {code} - {message}")
+#         # Connect to the mail server
+#         # server = smtplib.SMTP()
+#         server = smtplib.SMTP_SSL(mx_record, 587)
+#         server.starttls()
+#         sender_email=os.getenv("SENDER_EMAIL")
+#         sender_password=os.getenv("SENDER_PASSWORD")
+#         server.login(sender_email, sender_password)
+#         server.set_debuglevel(0)  # Disable debugging output
+#         server.connect(mx_record)
+#         server.helo()
+#         server.mail(sender_email)
+#         code, message = server.rcpt(email)
+#         print(f"Response from server for RCPT TO: {code} - {message}")
 
-        server.quit()
+#         server.quit()
 
-        # Check if the email is deliverable
-        return code == 250
+#         # Check if the email is deliverable
+#         return code == 250
     
-    except smtplib.SMTPRecipientsRefused as e:
-        # Handle case when the recipient is refused
-        print(f"SMTP Recipients Refused: {e}")
-        return False
-    except smtplib.SMTPException as e:
-        # Catch any other SMTP errors
-        print(f"SMTP Error: {e}")
-        return False
-    except dns.resolver.NoAnswer as e:
-        # If there is no MX record for the domain
-        print(f"No MX record found for {domain}: {e}")
-        return False
-    except Exception as e:
-        # Catch any other exceptions
-        print(f"General error: {e}")
-        return False
+#     except smtplib.SMTPRecipientsRefused as e:
+#         # Handle case when the recipient is refused
+#         print(f"SMTP Recipients Refused: {e}")
+#         return False
+#     except smtplib.SMTPException as e:
+#         # Catch any other SMTP errors
+#         print(f"SMTP Error: {e}")
+#         return False
+#     except dns.resolver.NoAnswer as e:
+#         # If there is no MX record for the domain
+#         print(f"No MX record found for {domain}: {e}")
+#         return False
+#     except Exception as e:
+#         # Catch any other exceptions
+#         print(f"General error: {e}")
+#         return False
 
-    # except Exception as e:
-    #     return False
+#     # except Exception as e:
+#     #     return False
 
-# Endpoint Flask untuk memeriksa email
-@app.route('/check_email', methods=['POST'])
-def check_email():
-    data = request.get_json()
-    email = data.get('email', '')
+# # Endpoint Flask untuk memeriksa email
+# # @app.route('/check_email', methods=['POST'])
+# def check_email():
+#     data = request.get_json()
+#     email = data.get('email', '')
 
-    if not is_valid_email(email):
-        return jsonify({"error": "Invalid email format."}), 400
+#     if not is_valid_email(email):
+#         return jsonify({"error": "Invalid email format."}), 400
     
-    # SMTP Deliverability check
-    deliverability = smtp_check(email)
-    if not deliverability:
-        return jsonify({"error": "Email is not deliverable."}), 400
+#     # SMTP Deliverability check
+#     deliverability = smtp_check(email)
+#     if not deliverability:
+#         return jsonify({"error": "Email is not deliverable."}), 400
 
-    # Validasi dengan model Gemini
-    verification_result = verify_email_with_gemini(email)
-    return jsonify({"result": verification_result})
+#     # Validasi dengan model Gemini
+#     verification_result = verify_email_with_gemini(email)
+#     return jsonify({"result": verification_result})
 
 if __name__ == "__main__":
     cert_file = "./SSL/bundle.crt"
