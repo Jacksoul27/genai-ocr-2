@@ -7,6 +7,11 @@
 .AppleDouble
 .LSOverride
 
+# Ignore the temp-images folder in the specific preprocessing-image directory
+preprocessing-image/temp-images/
+
+# If the temp-images rule appears earlier in your .gitignore file, ensure it's updated to this exact path
+
 # Icon must end with two \r
 Icon
 
@@ -28,7 +33,6 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
-temp-images/
 
 ### Python ###
 # Byte-compiled / optimized / DLL files
