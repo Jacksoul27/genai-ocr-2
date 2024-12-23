@@ -375,7 +375,7 @@ def process_ktp():
         }), 400
     
     file = request.files["file"]    
-    pathFolder = "D:/Development/python/preprocessing-image/temp-images/"
+    pathFolder = "./preprocessing-image/temp-images/"
     os.makedirs(pathFolder, exist_ok=True)
 
     file.save(pathFolder + file.filename)
