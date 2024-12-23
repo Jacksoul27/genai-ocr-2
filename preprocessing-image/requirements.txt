@@ -1,0 +1,16 @@
+google-generativeai
+pillow
+pyodbc
+matplotlib
+python-magic
+pandas
+streamlit
+pytesseract
+opencv-python-headless
+flask
+request
+python-dotenv
+pandas
+jsonify
+uvicorn[standard]
+textdistance
