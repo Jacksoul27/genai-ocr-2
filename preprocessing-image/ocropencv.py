@@ -10,9 +10,9 @@ from datetime import date
 from operator import itemgetter, attrgetter
 
 ROOT_PATH = os.getcwd()
-LINE_REC_PATH = os.path.join(ROOT_PATH, './data/ID_CARD_KEYWORDS.csv')
-RELIGION_REC_PATH = os.path.join(ROOT_PATH, './data/RELIGIONS.csv')
-JENIS_KELAMIN_REC_PATH = os.path.join(ROOT_PATH, './data/JENIS_KELAMIN.csv')
+LINE_REC_PATH = os.path.join(ROOT_PATH, './preprocessing-image/data/ID_CARD_KEYWORDS.csv')
+RELIGION_REC_PATH = os.path.join(ROOT_PATH, './preprocessing-image/data/RELIGIONS.csv')
+JENIS_KELAMIN_REC_PATH = os.path.join(ROOT_PATH, './preprocessing-image/data/JENIS_KELAMIN.csv')
 NEED_COLON = [3, 4, 6, 8, 10, 11, 12, 13, 14, 15, 17, 18, 19, 21]
 NEXT_LINE = 9
 ID_NUMBER = 3
@@ -197,7 +197,7 @@ def return_id_number(image, img_gray):
         return ""
 
     if check_nik == True:
-        img_mod = cv2.imread("./data/module2.png")
+        img_mod = cv2.imread("./preprocessing-image/data/module2.png")
 
         ref = cv2.cvtColor(img_mod, cv2.COLOR_BGR2GRAY)
         ref = cv2.threshold(ref, 66, 255, cv2.THRESH_BINARY_INV)[1]

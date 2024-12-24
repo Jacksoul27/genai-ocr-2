@@ -9,7 +9,8 @@ uvicorn[standard]
 pytesseract
 streamlit
 matplotlib
-python-magic
+python-magic-bin
+psutil
 pandas
 python-dotenv
 pandas
